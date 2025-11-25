@@ -1,0 +1,80 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'optparse'
+
+begin
+  require 'stacked_pdf_generator'
+rescue LoadError
+  lib_path = File.expand_path('../lib', __dir__)
+  $LOAD_PATH.unshift(lib_path) unless $LOAD_PATH.include?(lib_path)
+  require 'stacked_pdf_generator'
+end
+
+options = {}
+parser = OptionParser.new do |opts|
+  opts.banner = 'Usage: stacked-pdf-generator --input INPUT --output OUTPUT [options]'
+
+  opts.on('--input PATH', 'Input PDF path') { |value| options[:input_path] = value }
+  opts.on('--output PATH', 'Output PDF path') { |value| options[:output_path] = value }
+  opts.on('--pages-per-sheet N', Integer, 'Total pages per sheet (legacy single-dimension input)') do |value|
+    options[:pages_per_sheet] = value
+  end
+  opts.on('--rows N', Integer, 'Number of rows per sheet') { |value| options[:rows] = value }
+  opts.on('--columns N', Integer, 'Number of columns per sheet') { |value| options[:columns] = value }
+  opts.on('--paper-size SIZE', 'Paper size (a4 or a3)') { |value| options[:paper_size] = value }
+  opts.on('--autoscale MODE', 'Autoscale mode (pdfjam, none, podofo)') { |value| options[:autoscale] = value }
+  opts.on('--portrait BOOLEAN', 'Portrait layout (true/false)') { |value| options[:portrait] = value }
+  opts.on('--sheet-margins "L R T B"', 'Optional sheet margins in mm') { |value| options[:sheet_margins] = value }
+
+  opts.on('-v', '--version', 'Print version') do
+    puts StackedPdfGenerator::VERSION
+    exit 0
+  end
+
+  opts.on('-h', '--help', 'Show help') do
+    puts opts
+    exit 0
+  end
+end
+
+begin
+  parser.parse!(ARGV)
+rescue OptionParser::ParseError => e
+  warn e.message
+  warn parser
+  exit 1
+end
+
+required = %i[input_path output_path paper_size autoscale portrait]
+missing = required.reject { |key| options[key] }
+if missing.any?
+  warn "Missing required options: #{missing.join(', ')}"
+  warn parser
+  exit 1
+end
+
+if options[:pages_per_sheet].nil? && (options[:rows].nil? || options[:columns].nil?)
+  warn 'Specify either --pages-per-sheet or both --rows and --columns'
+  warn parser
+  exit 1
+end
+
+result = StackedPdfGenerator.call(
+  input_path: options[:input_path],
+  output_path: options[:output_path],
+  pages_per_sheet: options[:pages_per_sheet],
+  rows: options[:rows],
+  columns: options[:columns],
+  paper_size: options[:paper_size],
+  autoscale: options[:autoscale],
+  portrait: options[:portrait],
+  sheet_margins: options[:sheet_margins]
+)
+
+if result.success?
+  puts 'PDF generated successfully.'
+else
+  warn result.message
+  exit 1
+end
