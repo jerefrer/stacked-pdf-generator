@@ -24,10 +24,10 @@ module StackedPdfGenerator
   # and sequences pages via stacking-order to build the final PDF.
   class Generator
     attr_reader :input_path, :output_path, :paper_size, :autoscale, :portrait,
-                :sheet_margins_raw, :rows, :columns, :pages_per_sheet
+                :sheet_margins_raw, :rows, :columns, :pages_per_sheet, :two_sided_flipped
 
     def initialize(input_path:, output_path:, paper_size:, autoscale:, portrait:, rows: nil, columns: nil,
-                   pages_per_sheet: nil, sheet_margins: nil)
+                   pages_per_sheet: nil, sheet_margins: nil, two_sided_flipped: false)
       @input_path = input_path
       @output_path = output_path
       @paper_size = paper_size.to_s.upcase
@@ -37,6 +37,7 @@ module StackedPdfGenerator
       @rows = rows.nil? ? nil : Integer(rows)
       @columns = columns.nil? ? nil : Integer(columns)
       @pages_per_sheet = pages_per_sheet.nil? ? nil : Integer(pages_per_sheet)
+      @two_sided_flipped = boolean_cast(two_sided_flipped)
       normalize_layout_dimensions!
     end
 
@@ -128,7 +129,12 @@ module StackedPdfGenerator
 
     def page_sequence
       total_pages = detect_page_count
-      order = StackingOrder.order(entries: total_pages, rows: rows, columns: columns)
+      order = StackingOrder.order(
+        entries: total_pages,
+        rows: rows,
+        columns: columns,
+        two_sided_flipped: two_sided_flipped
+      )
       cells_per_page = rows * columns
 
       remainder = order.length % cells_per_page

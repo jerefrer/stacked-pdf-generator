@@ -1,13 +1,13 @@
 PATH
   remote: .
   specs:
-    stacked-pdf-generator (1.0.0)
+    stacked-pdf-generator (1.1.0)
       stacking-order (>= 1.0.0)
 
 GEM
   remote: https://rubygems.org/
   specs:
-    stacking-order (1.0.0)
+    stacking-order (1.1.0)
 
 PLATFORMS
   arm64-darwin-23
@@ -15,7 +15,7 @@ PLATFORMS
 
 DEPENDENCIES
   stacked-pdf-generator!
-  stacking-order (~> 1.0)
+  stacking-order (~> 1.1)
 
 BUNDLED WITH
    2.5.19

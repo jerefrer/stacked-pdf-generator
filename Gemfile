@@ -4,4 +4,4 @@ source 'https://rubygems.org'
 
 gemspec
 
-gem 'stacking-order', '~> 1.0'
+gem 'stacking-order', '~> 1.1'

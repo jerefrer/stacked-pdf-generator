@@ -32,7 +32,8 @@ result = StackedPdfGenerator.call(
   paper_size: 'a4',
   autoscale: 'pdfjam',
   portrait: false,
-  sheet_margins: '10 10 10 10'
+  sheet_margins: '10 10 10 10',
+  two_sided_flipped: true
 )
 
 if result.success?
@@ -46,7 +47,8 @@ end
 
 ```
 stacked-pdf-generator --input input.pdf --output output.pdf --rows 7 --columns 1 \
-  --paper-size a4 --autoscale pdfjam --portrait false --sheet-margins "10 10 10 10"
+  --paper-size a4 --autoscale pdfjam --portrait --two-sided-flipped \
+  --sheet-margins "10 10 10 10"
 ```
 
 You can continue to pass `--pages-per-sheet N` for backwards compatibility; if
