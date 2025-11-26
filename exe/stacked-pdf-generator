@@ -3,13 +3,9 @@
 
 require 'optparse'
 
-begin
-  require 'stacked_pdf_generator'
-rescue LoadError
-  lib_path = File.expand_path('../lib', __dir__)
-  $LOAD_PATH.unshift(lib_path) unless $LOAD_PATH.include?(lib_path)
-  require 'stacked_pdf_generator'
-end
+lib_path = File.expand_path('../lib', __dir__)
+$LOAD_PATH.unshift(lib_path) unless $LOAD_PATH.include?(lib_path)
+require 'stacked_pdf_generator'
 
 options = {}
 parser = OptionParser.new do |opts|
