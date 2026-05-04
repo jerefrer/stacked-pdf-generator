@@ -23,5 +23,6 @@ Gem::Specification.new do |spec|
   spec.executables   = ['stacked-pdf-generator']
   spec.require_paths = ['lib']
 
+  spec.add_runtime_dependency 'hexapdf', '>= 1.0', '< 2.0'
   spec.add_runtime_dependency 'stacking-order', '>= 1.0.0'
 end

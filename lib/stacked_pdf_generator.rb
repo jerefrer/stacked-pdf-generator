@@ -6,6 +6,8 @@ require 'securerandom'
 require 'stacking_order'
 
 require_relative 'stacked_pdf_generator/version'
+require_relative 'stacked_pdf_generator/crop_mark_detector'
+require_relative 'stacked_pdf_generator/crop_marks_processor'
 
 # Provides library and CLI helpers for generating stack-cut friendly PDFs using
 # pdfjam/podofocrop tooling and stacking-order-based page sequencing.
@@ -13,6 +15,8 @@ module StackedPdfGenerator
   ProcessingError = Class.new(StandardError)
 
   Result = Struct.new(:success?, :message, keyword_init: true)
+
+  PT_PER_MM = 72.0 / 25.4
 
   module_function
 
@@ -24,10 +28,13 @@ module StackedPdfGenerator
   # and sequences pages via stacking-order to build the final PDF.
   class Generator
     attr_reader :input_path, :output_path, :paper_size, :autoscale, :portrait,
-                :sheet_margins_raw, :rows, :columns, :pages_per_sheet, :two_sided_flipped
+                :sheet_margins_raw, :rows, :columns, :pages_per_sheet, :two_sided_flipped,
+                :crop_from_marks, :crop_box_mm, :mark_max_length_mm, :mark_edge_tolerance_mm
 
     def initialize(input_path:, output_path:, paper_size:, autoscale:, portrait:, rows: nil, columns: nil,
-                   pages_per_sheet: nil, sheet_margins: nil, two_sided_flipped: false)
+                   pages_per_sheet: nil, sheet_margins: nil, two_sided_flipped: false,
+                   crop_from_marks: false, crop_box: nil,
+                   mark_max_length_mm: nil, mark_edge_tolerance_mm: nil)
       @input_path = input_path
       @output_path = output_path
       @paper_size = paper_size.to_s.upcase
@@ -38,18 +45,23 @@ module StackedPdfGenerator
       @columns = columns.nil? ? nil : Integer(columns)
       @pages_per_sheet = pages_per_sheet.nil? ? nil : Integer(pages_per_sheet)
       @two_sided_flipped = boolean_cast(two_sided_flipped)
+      @crop_from_marks = boolean_cast(crop_from_marks)
+      @crop_box_mm = crop_box # hash {top:, bottom:, left:, right:} in mm, optional
+      @mark_max_length_mm = mark_max_length_mm
+      @mark_edge_tolerance_mm = mark_edge_tolerance_mm
       normalize_layout_dimensions!
     end
 
     def call
       validate_arguments!
+      apply_crop_from_marks if crop_pre_processing?
       run_pdfjam
       finalize_output
       Result.new(success?: true, message: '')
     rescue ProcessingError => e
       Result.new(success?: false, message: e.message)
     ensure
-      cleanup_tempfile
+      cleanup_tempfiles
     end
 
     private
@@ -58,6 +70,60 @@ module StackedPdfGenerator
       raise ProcessingError, 'Missing input PDF' unless present?(input_path) && File.exist?(input_path)
       raise ProcessingError, 'Missing output path' if blank?(output_path)
       raise ProcessingError, 'pages_per_sheet must be positive' unless pages_per_sheet.positive?
+    end
+
+    def crop_pre_processing?
+      crop_from_marks || crop_box_mm
+    end
+
+    def apply_crop_from_marks
+      box_pts = crop_box_mm ? manual_crop_box_pts : detect_crop_box_pts
+      CropMarksProcessor.call(input_path, cropped_input_path, box_pts)
+      @input_path = cropped_input_path
+    end
+
+    def detect_crop_box_pts
+      detector_args = {}
+      detector_args[:mark_max_length_pts] = mark_max_length_mm * PT_PER_MM if mark_max_length_mm
+      detector_args[:edge_tolerance_pts]  = mark_edge_tolerance_mm * PT_PER_MM if mark_edge_tolerance_mm
+
+      detected = CropMarkDetector.call(input_path, **detector_args)
+      [detected.left, detected.bottom, detected.right, detected.top]
+    end
+
+    def manual_crop_box_pts
+      sym = crop_box_mm.transform_keys(&:to_sym)
+      missing = %i[top bottom].reject { |k| sym.key?(k) }
+      raise ProcessingError, "Manual crop_box missing keys: #{missing.inspect}" unless missing.empty?
+
+      page_w_pts, page_h_pts = first_page_dimensions_pts
+      left  = (sym[:left]  || 0.0).to_f * PT_PER_MM
+      right = sym[:right] ? sym[:right].to_f * PT_PER_MM : page_w_pts
+      # Manual values are given in mm from the bottom-left origin of the page,
+      # which matches the PDF coordinate system.
+      bottom = sym[:bottom].to_f * PT_PER_MM
+      top    = sym[:top].to_f * PT_PER_MM
+
+      raise ProcessingError, "Manual crop top (#{top.round(2)}pts) exceeds page height (#{page_h_pts.round(2)}pts)" if top > page_h_pts + 0.5
+      raise ProcessingError, "Manual crop right (#{right.round(2)}pts) exceeds page width (#{page_w_pts.round(2)}pts)" if right > page_w_pts + 0.5
+
+      [left, bottom, right, top]
+    end
+
+    def first_page_dimensions_pts
+      doc = HexaPDF::Document.open(input_path)
+      page = doc.pages[0]
+      raise ProcessingError, 'PDF has no pages' unless page
+
+      [page.box.width.to_f, page.box.height.to_f]
+    end
+
+    def cropped_input_path
+      @cropped_input_path ||= begin
+        dirname = File.dirname(output_path)
+        FileUtils.mkdir_p(dirname)
+        File.join(dirname, "stacked_cropped_#{SecureRandom.hex(6)}.pdf")
+      end
     end
 
     def run_pdfjam
@@ -93,8 +159,9 @@ module StackedPdfGenerator
       end
     end
 
-    def cleanup_tempfile
+    def cleanup_tempfiles
       FileUtils.rm_f(temp_output_path) if defined?(@temp_output_path) && File.exist?(@temp_output_path)
+      FileUtils.rm_f(@cropped_input_path) if defined?(@cropped_input_path) && @cropped_input_path && File.exist?(@cropped_input_path)
     end
 
     def temp_output_path

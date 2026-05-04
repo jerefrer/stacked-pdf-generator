@@ -1,19 +1,33 @@
 PATH
   remote: .
   specs:
-    stacked-pdf-generator (1.1.0)
+    stacked-pdf-generator (1.2.0)
+      hexapdf (>= 1.0, < 2.0)
       stacking-order (>= 1.0.0)
 
 GEM
   remote: https://rubygems.org/
   specs:
+    cmdparse (3.0.7)
+    geom2d (0.4.1)
+    hexapdf (1.7.0)
+      cmdparse (~> 3.0, >= 3.0.3)
+      geom2d (~> 0.4, >= 0.4.1)
+      openssl (>= 2.2.1)
+      strscan (>= 3.1.2)
+    minitest (5.27.0)
+    openssl (4.0.1)
+    rake (13.4.2)
     stacking-order (1.1.0)
+    strscan (3.1.8)
 
 PLATFORMS
   arm64-darwin-23
   ruby
 
 DEPENDENCIES
+  minitest (~> 5.0)
+  rake
   stacked-pdf-generator!
   stacking-order (~> 1.1)
 

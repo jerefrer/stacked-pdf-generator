@@ -7,7 +7,8 @@ lib_path = File.expand_path('../lib', __dir__)
 $LOAD_PATH.unshift(lib_path) unless $LOAD_PATH.include?(lib_path)
 require 'stacked_pdf_generator'
 
-options = { portrait: false, two_sided_flipped: false }
+options = { portrait: false, two_sided_flipped: false, crop_from_marks: false }
+crop_box = {}
 parser = OptionParser.new do |opts|
   opts.banner = 'Usage: stacked-pdf-generator --input INPUT --output OUTPUT [options]'
 
@@ -25,6 +26,28 @@ parser = OptionParser.new do |opts|
   opts.on('--two-sided-flipped', 'Flip even-numbered pages vertically for duplex printing (default: off)') do
     options[:two_sided_flipped] = true
   end
+
+  opts.separator ''
+  opts.separator 'Crop-from-marks options (input PDF carries printer crop marks):'
+
+  opts.on('--crop-from-marks',
+          'Auto-detect crop marks on the first page and crop every page to the area they delimit') do
+    options[:crop_from_marks] = true
+  end
+  opts.on('--crop-top MM', Float, 'Manual crop: Y of the top edge in mm (from page bottom)') { |v| crop_box[:top] = v }
+  opts.on('--crop-bottom MM', Float, 'Manual crop: Y of the bottom edge in mm (from page bottom)') { |v| crop_box[:bottom] = v }
+  opts.on('--crop-left MM', Float, 'Manual crop: X of the left edge in mm (default 0)') { |v| crop_box[:left] = v }
+  opts.on('--crop-right MM', Float, 'Manual crop: X of the right edge in mm (default page width)') { |v| crop_box[:right] = v }
+  opts.on('--mark-max-length MM', Float,
+          'Detection: maximum length of a crop-mark segment in mm (default ~10.6)') do |v|
+    options[:mark_max_length_mm] = v
+  end
+  opts.on('--mark-edge-tolerance MM', Float,
+          'Detection: how close a mark must be to the page edge in mm (default ~0.35)') do |v|
+    options[:mark_edge_tolerance_mm] = v
+  end
+
+  opts.separator ''
 
   opts.on('-v', '--version', 'Print version') do
     puts StackedPdfGenerator::VERSION
@@ -59,6 +82,8 @@ if options[:pages_per_sheet].nil? && (options[:rows].nil? || options[:columns].n
   exit 1
 end
 
+options[:crop_box] = crop_box unless crop_box.empty?
+
 result = StackedPdfGenerator.call(
   input_path: options[:input_path],
   output_path: options[:output_path],
@@ -69,7 +94,11 @@ result = StackedPdfGenerator.call(
   autoscale: options[:autoscale],
   portrait: options[:portrait],
   sheet_margins: options[:sheet_margins],
-  two_sided_flipped: options[:two_sided_flipped]
+  two_sided_flipped: options[:two_sided_flipped],
+  crop_from_marks: options[:crop_from_marks],
+  crop_box: options[:crop_box],
+  mark_max_length_mm: options[:mark_max_length_mm],
+  mark_edge_tolerance_mm: options[:mark_edge_tolerance_mm]
 )
 
 if result.success?
