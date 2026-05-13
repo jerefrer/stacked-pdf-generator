@@ -18,7 +18,7 @@ GEM
     minitest (5.27.0)
     openssl (4.0.1)
     rake (13.4.2)
-    stacking-order (1.1.0)
+    stacking-order (1.2.0)
     strscan (3.1.8)
 
 PLATFORMS
